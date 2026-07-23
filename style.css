@@ -134,11 +134,29 @@ header {
 .btn-danger { background-color: #d32f2f; color: white; }
 .btn-pos { background-color: var(--pos-color); color: white; }
 
+/* Kassenmodus als Vollbild Styling */
 .pos-box {
-    border: 3px dashed var(--pos-color);
-    padding: 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     background: #f4ecf7;
-    border-radius: 10px;
+    z-index: 9999;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.pos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
 }
 
 .admin-header {
@@ -155,12 +173,13 @@ form label {
     font-weight: bold;
 }
 
-input {
+input, textarea {
     padding: 10px;
     font-size: 1rem;
     border: 1px solid #ccc;
     border-radius: 6px;
     margin-top: 5px;
+    font-family: inherit;
 }
 
 .hidden { display: none !important; }
@@ -172,6 +191,7 @@ input {
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 1000;
 }
 
 .modal-content {
