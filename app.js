@@ -28,7 +28,8 @@ let eventConfig = {
     date: "15. November 2026",
     time: "17:00 Uhr",
     location: "Stadthalle Musterstadt",
-    price: 12.00
+    price: 12.00,
+    about: "Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen für Groß und Klein!"
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -54,12 +55,14 @@ function updateUIWithEventDetails() {
     document.getElementById('display-time').innerText = eventConfig.time;
     document.getElementById('display-location').innerText = eventConfig.location;
     document.getElementById('display-price').innerText = parseFloat(eventConfig.price).toFixed(2);
+    document.getElementById('display-about-text').innerText = eventConfig.about || "";
 
-    document.getElementById('edit-title').value = eventConfig.title;
-    document.getElementById('edit-date').value = eventConfig.date;
-    document.getElementById('edit-time').value = eventConfig.time;
-    document.getElementById('edit-location').value = eventConfig.location;
-    document.getElementById('edit-price').value = eventConfig.price;
+    document.getElementById('edit-title').value = eventConfig.title || "";
+    document.getElementById('edit-date').value = eventConfig.date || "";
+    document.getElementById('edit-time').value = eventConfig.time || "";
+    document.getElementById('edit-location').value = eventConfig.location || "";
+    document.getElementById('edit-price').value = eventConfig.price || 12;
+    document.getElementById('edit-about').value = eventConfig.about || "";
 }
 
 // Einstellungen im Admin speichern
@@ -70,7 +73,8 @@ document.getElementById('event-settings-form').addEventListener('submit', async 
         date: document.getElementById('edit-date').value,
         time: document.getElementById('edit-time').value,
         location: document.getElementById('edit-location').value,
-        price: parseFloat(document.getElementById('edit-price').value)
+        price: parseFloat(document.getElementById('edit-price').value),
+        about: document.getElementById('edit-about').value
     };
 
     try {
@@ -375,7 +379,7 @@ function startQRScanner() {
         { facingMode: "environment" }, 
         config,
         (decodedText) => processTicketScan(decodedText),
-        () => {} // Ignoriere Frame-Suchfehler
+        () => {}
     ).then(() => {
         isScannerRunning = true;
     }).catch(err => {
@@ -390,7 +394,7 @@ async function stopQRScanner() {
             await html5QrCode.stop();
             html5QrCode.clear();
             isScannerRunning = false;
-            document.getElementById('reader').innerHTML = ''; // Scanner-Viewbereich säubern
+            document.getElementById('reader').innerHTML = '';
         } catch (err) {
             console.error("Fehler beim Beenden des Scanners:", err);
             isScannerRunning = false;
@@ -478,15 +482,30 @@ document.getElementById('save-layout-btn').onclick = () => {
         .catch(err => alert("Fehler beim Speichern: " + err.message));
 };
 
-// Kassen-Modus umschalten
+// Kassen-Modus Vollbild Steuerung
+const posContainer = document.getElementById('pos-mode-container');
+
 document.getElementById('toggle-pos-btn').onclick = async () => {
-    const posBox = document.getElementById('pos-mode-container');
-    posBox.classList.toggle('hidden');
-    if (!posBox.classList.contains('hidden')) {
-        renderPosSeating();
-        startQRScanner();
-    } else {
-        await stopQRScanner();
+    posContainer.classList.remove('hidden');
+    renderPosSeating();
+    startQRScanner();
+
+    // In echten Vollbildmodus wechseln (Full Screen API)
+    if (posContainer.requestFullscreen) {
+        posContainer.requestFullscreen().catch(err => console.log("Vollbild Fehler:", err));
+    } else if (posContainer.webkitRequestFullscreen) {
+        posContainer.webkitRequestFullscreen();
+    }
+};
+
+// Kassenmodus beenden
+document.getElementById('close-pos-btn').onclick = async () => {
+    await stopQRScanner();
+    posContainer.classList.add('hidden');
+
+    // Vollbild verlassen
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => console.log(err));
     }
 };
 
