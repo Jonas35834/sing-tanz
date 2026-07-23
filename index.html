@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sing & Tanz Konzert</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+    <header>
+        <div class="logo">🎭 Sing & Tanz Konzert</div>
+        <nav>
+            <a href="#about">Über das Konzert</a>
+            <a href="#booking">Tickets buchen</a>
+            <button id="admin-login-btn" class="btn-secondary">Admin Login</button>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Sing & Tanz Konzert</h1>
+            <p>Ein familiäres Erlebnis voller Musik, Freude und Tanz von uns dreien!</p>
+            <div class="event-info">
+                <span>📅 15. November 2026</span>
+                <span>⏰ 17:00 Uhr (Einlass 16:30 Uhr)</span>
+                <span>📍 Stadthalle Musterstadt</span>
+            </div>
+            <a href="#booking" class="btn-primary">Jetzt Plätze auswählen</a>
+        </div>
+    </section>
+
+    <section id="about" class="container">
+        <h2>Über unser Konzert</h2>
+        <p>Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen für Groß und Klein!</p>
+    </section>
+
+    <section id="booking" class="container">
+        <h2>Tickets buchen</h2>
+        <p>Wähle deine Wunschplätze im Saalplan aus:</p>
+
+        <div class="stage">BÜHNE</div>
+
+        <div id="seating-map" class="seating-container"></div>
+
+        <div class="legend">
+            <span><span class="seat-sample available"></span> Frei</span>
+            <span><span class="seat-sample selected"></span> Ausgewählt</span>
+            <span><span class="seat-sample booked"></span> Belegt</span>
+            <span><span class="seat-sample blocked"></span> Gesperrt</span>
+        </div>
+
+        <div id="booking-form-container" class="card hidden">
+            <h3>Ausgewählte Plätze: <span id="selected-seats-list">-</span></h3>
+            <h4>Gesamtsumme: <span id="total-price">0</span> €</h4>
+
+            <form id="booking-form">
+                <input type="text" id="buyer-name" placeholder="Dein vollständiger Name" required>
+                <input type="email" id="buyer-email" placeholder="Deine E-Mail-Adresse" required>
+                <button type="submit" class="btn-primary">Kostenpflichtig buchen & Ticket herunterladen</button>
+            </form>
+        </div>
+    </section>
+
+    <div id="login-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Veranstalter Login</h3>
+            <input type="email" id="admin-email" placeholder="E-Mail">
+            <input type="password" id="admin-password" placeholder="Passwort">
+            <button id="do-login-btn" class="btn-primary">Einloggen</button>
+            <button id="close-login-btn" class="btn-secondary">Abbrechen</button>
+        </div>
+    </div>
+
+    <section id="admin-dashboard" class="container hidden">
+        <h2>Admin Dashboard</h2>
+        <button id="logout-btn" class="btn-secondary">Ausloggen</button>
+        
+        <hr>
+
+        <h3>1. Sitzplan-Editor</h3>
+        <div class="admin-controls">
+            <button id="add-row-btn" class="btn-secondary">+ Reihe hinzufügen</button>
+            <button id="save-layout-btn" class="btn-primary">Saalplan veröffentlichen</button>
+        </div>
+        
+        <div id="admin-seating-editor" class="seating-container editor-mode"></div>
+
+        <hr>
+
+        <h3>2. Veraufte Tickets & Buchungsübersicht</h3>
+        <table id="bookings-table">
+            <thead>
+                <tr>
+                    <th>Ticket-ID</th>
+                    <th>Name</th>
+                    <th>E-Mail</th>
+                    <th>Plätze</th>
+                    <th>Preis</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </section>
+
+    <div id="qrcode" style="display:none;"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
