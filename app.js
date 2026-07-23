@@ -21,6 +21,7 @@ let bookedSeats = [];
 let selectedSeats = [];
 let posSelectedSeats = [];
 let html5QrcodeScanner = null;
+let isScannerRunning = false;
 
 let eventConfig = {
     title: "Sing & Tanz Konzert",
@@ -157,6 +158,7 @@ function renderUserSeating() {
             } else if (isSelected) {
                 seatDiv.classList.add('selected');
                 seatDiv.innerText = seat.id;
+                seatDiv.onclick = () => toggleSeatSelection(seat.id); // Abwählbar
             } else {
                 seatDiv.classList.add('available');
                 seatDiv.innerText = seat.id;
@@ -168,7 +170,7 @@ function renderUserSeating() {
     });
 }
 
-// Besucher Sitz-Auswahl & dynamische Namen
+// Besucher Sitz-Auswahl (Hinzufügen & Abwählen)
 function toggleSeatSelection(seatId) {
     if (selectedSeats.includes(seatId)) {
         selectedSeats = selectedSeats.filter(id => id !== seatId);
@@ -184,12 +186,19 @@ function toggleSeatSelection(seatId) {
         document.getElementById('selected-seats-list').innerText = selectedSeats.join(', ');
         document.getElementById('total-price').innerText = (selectedSeats.length * eventConfig.price).toFixed(2);
 
+        // Bereits eingetragene Namen merken
+        const existingValues = {};
+        document.querySelectorAll('.seat-name-input').forEach(input => {
+            existingValues[input.dataset.seat] = input.value;
+        });
+
         namesDiv.innerHTML = '<p><strong>Name pro Ticket eintragen:</strong></p>';
         selectedSeats.forEach(seat => {
             const input = document.createElement('input');
             input.type = 'text';
             input.placeholder = `Name für Platz ${seat}`;
             input.dataset.seat = seat;
+            input.value = existingValues[seat] || '';
             input.required = true;
             input.className = 'seat-name-input';
             input.style.display = 'block';
@@ -313,6 +322,12 @@ document.getElementById('check-ticket-btn').onclick = () => {
     if (id) processTicketScan(id);
 };
 
+document.getElementById('restart-scanner-btn').onclick = () => {
+    document.getElementById('restart-scanner-btn').classList.add('hidden');
+    document.getElementById('scan-result').classList.add('hidden');
+    startQRScanner();
+};
+
 async function processTicketScan(ticketId) {
     const resultEl = document.getElementById('scan-result');
     resultEl.classList.remove('hidden', 'valid', 'invalid');
@@ -335,6 +350,10 @@ async function processTicketScan(ticketId) {
             await docRef.update({ status: 'ENTWERTET' });
             resultEl.classList.add('valid');
             resultEl.innerText = `✅ GÜLTIG! Einlass gewährt für ${data.name} (Platz: ${data.seat})`;
+            
+            // Kamera-Scanner nach Erfolg stoppen
+            stopQRScanner();
+            document.getElementById('restart-scanner-btn').classList.remove('hidden');
         }
 
     } catch (err) {
@@ -344,11 +363,21 @@ async function processTicketScan(ticketId) {
 }
 
 function startQRScanner() {
-    if (html5QrcodeScanner) return;
+    if (isScannerRunning) return;
+
     html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
     html5QrcodeScanner.render((decodedText) => {
         processTicketScan(decodedText);
     });
+    isScannerRunning = true;
+}
+
+function stopQRScanner() {
+    if (html5QrcodeScanner && isScannerRunning) {
+        html5QrcodeScanner.clear().then(() => {
+            isScannerRunning = false;
+        }).catch(err => console.error("Scanner Stopp Fehler:", err));
+    }
 }
 
 // Admin Saalplan Editor
@@ -438,6 +467,8 @@ document.getElementById('toggle-pos-btn').onclick = () => {
     if (!posBox.classList.contains('hidden')) {
         renderPosSeating();
         startQRScanner();
+    } else {
+        stopQRScanner();
     }
 };
 
@@ -466,39 +497,49 @@ function renderPosSeating() {
             } else if (isSelected) {
                 seatDiv.classList.add('selected');
                 seatDiv.innerText = seat.id;
+                seatDiv.onclick = () => togglePosSeatSelection(seat.id); // Abwählbar
             } else {
                 seatDiv.classList.add('available');
                 seatDiv.innerText = seat.id;
-                seatDiv.onclick = () => {
-                    if (posSelectedSeats.includes(seat.id)) {
-                        posSelectedSeats = posSelectedSeats.filter(id => id !== seat.id);
-                    } else {
-                        posSelectedSeats.push(seat.id);
-                    }
-
-                    const posNamesDiv = document.getElementById('pos-names-container');
-                    posNamesDiv.innerHTML = '';
-                    posSelectedSeats.forEach(s => {
-                        const input = document.createElement('input');
-                        input.type = 'text';
-                        input.placeholder = `Name für Platz ${s}`;
-                        input.dataset.seat = s;
-                        input.className = 'pos-seat-name-input';
-                        input.style.display = 'block';
-                        input.style.width = '100%';
-                        input.style.marginTop = '8px';
-                        posNamesDiv.appendChild(input);
-                    });
-
-                    document.getElementById('pos-seats-list').innerText = posSelectedSeats.length > 0 ? posSelectedSeats.join(', ') : '-';
-                    document.getElementById('pos-total-price').innerText = (posSelectedSeats.length * eventConfig.price).toFixed(2);
-                    renderPosSeating();
-                };
+                seatDiv.onclick = () => togglePosSeatSelection(seat.id);
             }
             rowDiv.appendChild(seatDiv);
         });
         el.appendChild(rowDiv);
     });
+}
+
+// Kassen-Sitz-Auswahl (Hinzufügen & Abwählen)
+function togglePosSeatSelection(seatId) {
+    if (posSelectedSeats.includes(seatId)) {
+        posSelectedSeats = posSelectedSeats.filter(id => id !== seatId);
+    } else {
+        posSelectedSeats.push(seatId);
+    }
+
+    const posNamesDiv = document.getElementById('pos-names-container');
+    const existingValues = {};
+    document.querySelectorAll('.pos-seat-name-input').forEach(input => {
+        existingValues[input.dataset.seat] = input.value;
+    });
+
+    posNamesDiv.innerHTML = '';
+    posSelectedSeats.forEach(s => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `Name für Platz ${s}`;
+        input.dataset.seat = s;
+        input.value = existingValues[s] || '';
+        input.className = 'pos-seat-name-input';
+        input.style.display = 'block';
+        input.style.width = '100%';
+        input.style.marginTop = '8px';
+        posNamesDiv.appendChild(input);
+    });
+
+    document.getElementById('pos-seats-list').innerText = posSelectedSeats.length > 0 ? posSelectedSeats.join(', ') : '-';
+    document.getElementById('pos-total-price').innerText = (posSelectedSeats.length * eventConfig.price).toFixed(2);
+    renderPosSeating();
 }
 
 // Auth Handlers
@@ -522,5 +563,6 @@ document.getElementById('do-login-btn').onclick = () => {
 document.getElementById('logout-btn').onclick = () => {
     auth.signOut().then(() => {
         document.getElementById('admin-dashboard').classList.add('hidden');
+        stopQRScanner();
     });
 };
