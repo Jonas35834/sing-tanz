@@ -20,7 +20,7 @@ let currentLayout = [];
 let bookedSeats = [];
 let selectedSeats = [];
 let posSelectedSeats = [];
-let html5QrcodeScanner = null;
+let html5QrCode = null;
 let isScannerRunning = false;
 
 let eventConfig = {
@@ -158,7 +158,7 @@ function renderUserSeating() {
             } else if (isSelected) {
                 seatDiv.classList.add('selected');
                 seatDiv.innerText = seat.id;
-                seatDiv.onclick = () => toggleSeatSelection(seat.id); // Abwählbar
+                seatDiv.onclick = () => toggleSeatSelection(seat.id);
             } else {
                 seatDiv.classList.add('available');
                 seatDiv.innerText = seat.id;
@@ -186,7 +186,6 @@ function toggleSeatSelection(seatId) {
         document.getElementById('selected-seats-list').innerText = selectedSeats.join(', ');
         document.getElementById('total-price').innerText = (selectedSeats.length * eventConfig.price).toFixed(2);
 
-        // Bereits eingetragene Namen merken
         const existingValues = {};
         document.querySelectorAll('.seat-name-input').forEach(input => {
             existingValues[input.dataset.seat] = input.value;
@@ -286,7 +285,7 @@ document.getElementById('pos-submit-btn').onclick = async () => {
     }
 };
 
-// PDF Ticket Erzeugung (Einzelticket)
+// PDF Ticket Erzeugung
 function generatePDFTicket(ticketId, name, seat, price) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -351,8 +350,8 @@ async function processTicketScan(ticketId) {
             resultEl.classList.add('valid');
             resultEl.innerText = `✅ GÜLTIG! Einlass gewährt für ${data.name} (Platz: ${data.seat})`;
             
-            // Kamera-Scanner nach Erfolg stoppen
-            stopQRScanner();
+            // Kamera-Hardware VOLLSTÄNDIG schließen bei Erfolg
+            await stopQRScanner();
             document.getElementById('restart-scanner-btn').classList.remove('hidden');
         }
 
@@ -362,21 +361,40 @@ async function processTicketScan(ticketId) {
     }
 }
 
+// Scanner starten
 function startQRScanner() {
     if (isScannerRunning) return;
 
-    html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-    html5QrcodeScanner.render((decodedText) => {
-        processTicketScan(decodedText);
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config,
+        (decodedText) => processTicketScan(decodedText),
+        () => {} // Ignoriere Frame-Suchfehler
+    ).then(() => {
+        isScannerRunning = true;
+    }).catch(err => {
+        console.error("Kamera konnte nicht gestartet werden:", err);
     });
-    isScannerRunning = true;
 }
 
-function stopQRScanner() {
-    if (html5QrcodeScanner && isScannerRunning) {
-        html5QrcodeScanner.clear().then(() => {
+// Scanner & Kamera VOLLSTÄNDIG stoppen
+async function stopQRScanner() {
+    if (html5QrCode && isScannerRunning) {
+        try {
+            await html5QrCode.stop();
+            html5QrCode.clear();
             isScannerRunning = false;
-        }).catch(err => console.error("Scanner Stopp Fehler:", err));
+            document.getElementById('reader').innerHTML = ''; // Scanner-Viewbereich säubern
+        } catch (err) {
+            console.error("Fehler beim Beenden des Scanners:", err);
+            isScannerRunning = false;
+        }
     }
 }
 
@@ -461,14 +479,14 @@ document.getElementById('save-layout-btn').onclick = () => {
 };
 
 // Kassen-Modus umschalten
-document.getElementById('toggle-pos-btn').onclick = () => {
+document.getElementById('toggle-pos-btn').onclick = async () => {
     const posBox = document.getElementById('pos-mode-container');
     posBox.classList.toggle('hidden');
     if (!posBox.classList.contains('hidden')) {
         renderPosSeating();
         startQRScanner();
     } else {
-        stopQRScanner();
+        await stopQRScanner();
     }
 };
 
@@ -497,7 +515,7 @@ function renderPosSeating() {
             } else if (isSelected) {
                 seatDiv.classList.add('selected');
                 seatDiv.innerText = seat.id;
-                seatDiv.onclick = () => togglePosSeatSelection(seat.id); // Abwählbar
+                seatDiv.onclick = () => togglePosSeatSelection(seat.id);
             } else {
                 seatDiv.classList.add('available');
                 seatDiv.innerText = seat.id;
@@ -509,7 +527,7 @@ function renderPosSeating() {
     });
 }
 
-// Kassen-Sitz-Auswahl (Hinzufügen & Abwählen)
+// Kassen-Sitz-Auswahl
 function togglePosSeatSelection(seatId) {
     if (posSelectedSeats.includes(seatId)) {
         posSelectedSeats = posSelectedSeats.filter(id => id !== seatId);
@@ -560,9 +578,9 @@ document.getElementById('do-login-btn').onclick = () => {
         .catch(err => alert("Login fehlgeschlagen: " + err.message));
 };
 
-document.getElementById('logout-btn').onclick = () => {
+document.getElementById('logout-btn').onclick = async () => {
+    await stopQRScanner();
     auth.signOut().then(() => {
         document.getElementById('admin-dashboard').classList.add('hidden');
-        stopQRScanner();
     });
 };
