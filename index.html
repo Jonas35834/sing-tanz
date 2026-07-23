@@ -14,7 +14,7 @@
 <body>
 
     <header>
-        <div class="logo">🎭 Sing & Tanz Konzert</div>
+        <div class="logo">🎭 <span class="event-title-display">Sing & Tanz Konzert</span></div>
         <nav>
             <a href="#about">Über das Konzert</a>
             <a href="#booking">Tickets buchen</a>
@@ -24,12 +24,13 @@
 
     <section class="hero">
         <div class="hero-content">
-            <h1>Sing & Tanz Konzert</h1>
+            <h1 class="event-title-display">Sing & Tanz Konzert</h1>
             <p>Ein familiäres Erlebnis voller Musik, Freude und Tanz von uns dreien!</p>
             <div class="event-info">
-                <span>📅 15. November 2026</span>
-                <span>⏰ 17:00 Uhr (Einlass 16:30 Uhr)</span>
-                <span>📍 Stadthalle Musterstadt</span>
+                <span>📅 <span id="display-date">15. November 2026</span></span>
+                <span>⏰ <span id="display-time">17:00 Uhr</span></span>
+                <span>📍 <span id="display-location">Stadthalle Musterstadt</span></span>
+                <span>🎟️ <span id="display-price">12.00</span> € / Ticket</span>
             </div>
             <a href="#booking" class="btn-primary">Jetzt Plätze auswählen</a>
         </div>
@@ -57,7 +58,7 @@
 
         <div id="booking-form-container" class="card hidden">
             <h3>Ausgewählte Plätze: <span id="selected-seats-list">-</span></h3>
-            <h4>Gesamtsumme: <span id="total-price">0</span> €</h4>
+            <h4>Gesamtsumme: <span id="total-price">0.00</span> €</h4>
 
             <form id="booking-form">
                 <input type="text" id="buyer-name" placeholder="Dein vollständiger Name" required>
@@ -78,34 +79,69 @@
     </div>
 
     <section id="admin-dashboard" class="container hidden">
-        <h2>Admin Dashboard</h2>
-        <button id="logout-btn" class="btn-secondary">Ausloggen</button>
-        
-        <hr>
-
-        <h3>1. Sitzplan-Editor</h3>
-        <div class="admin-controls">
-            <button id="add-row-btn" class="btn-secondary">+ Reihe hinzufügen</button>
-            <button id="save-layout-btn" class="btn-primary">Saalplan veröffentlichen</button>
+        <div class="admin-header">
+            <h2>Admin Dashboard</h2>
+            <div>
+                <button id="toggle-pos-btn" class="btn-pos">🏧 Kassen-Modus (Abendkasse)</button>
+                <button id="logout-btn" class="btn-secondary">Ausloggen</button>
+            </div>
         </div>
         
-        <div id="admin-seating-editor" class="seating-container editor-mode"></div>
+        <hr>
+
+        <div id="pos-mode-container" class="pos-box hidden">
+            <h3>🏧 Kassen-Modus (Barverkauf vor Ort)</h3>
+            <p>Wähle Plätze im Plan oben aus und trage den Namen des Barzahlers ein:</p>
+            <div id="pos-seating-map" class="seating-container"></div>
+            <div id="pos-checkout" class="card">
+                <h4>Gewählte Plätze: <span id="pos-seats-list">-</span></h4>
+                <h4>Summe Barzahlung: <span id="pos-total-price">0.00</span> €</h4>
+                <input type="text" id="pos-buyer-name" placeholder="Name des Käufers (Barzahler)">
+                <button id="pos-submit-btn" class="btn-primary">Barzahlung abschließen & Ticket drucken</button>
+            </div>
+        </div>
+
+        <div class="admin-section card">
+            <h3>⚙️ Event-Einstellungen bearbeiten</h3>
+            <form id="event-settings-form">
+                <label>Konzert-Name: <input type="text" id="edit-title" required></label>
+                <label>Datum: <input type="text" id="edit-date" required></label>
+                <label>Uhrzeit: <input type="text" id="edit-time" required></label>
+                <label>Ort: <input type="text" id="edit-location" required></label>
+                <label>Ticketpreis (€): <input type="number" step="0.50" id="edit-price" required></label>
+                <button type="submit" class="btn-primary">Einstellungen speichern</button>
+            </form>
+        </div>
 
         <hr>
 
-        <h3>2. Veraufte Tickets & Buchungsübersicht</h3>
-        <table id="bookings-table">
-            <thead>
-                <tr>
-                    <th>Ticket-ID</th>
-                    <th>Name</th>
-                    <th>E-Mail</th>
-                    <th>Plätze</th>
-                    <th>Preis</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+        <div class="admin-section">
+            <h3>🛋️ Saalplan-Editor</h3>
+            <div class="admin-controls">
+                <button id="add-row-btn" class="btn-secondary">+ Reihe hinzufügen</button>
+                <button id="save-layout-btn" class="btn-primary">Saalplan veröffentlichen</button>
+            </div>
+            <div id="admin-seating-editor" class="seating-container editor-mode"></div>
+        </div>
+
+        <hr>
+
+        <div class="admin-section">
+            <h3>📋 Veraufte Tickets & Stornierung</h3>
+            <table id="bookings-table">
+                <thead>
+                    <tr>
+                        <th>Ticket-ID</th>
+                        <th>Name</th>
+                        <th>E-Mail / Typ</th>
+                        <th>Plätze</th>
+                        <th>Preis</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </section>
 
     <div id="qrcode" style="display:none;"></div>
