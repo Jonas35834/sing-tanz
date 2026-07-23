@@ -1,3 +1,4 @@
+// Firebase Konfiguration
 const firebaseConfig = {
     apiKey: "AIzaSyDO8HC7Q3zW8HiiEMIzJvMR5kzRSOEurW8",
     authDomain: "sing-tanz.firebaseapp.com",
@@ -11,9 +12,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Auth-Persistenz erzwingen (verhindert Tracking-Prevention-Sperren)
+// Verhindert Blockaden durch Tracking Prevention
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
+// Globale Variablen
 let currentLayout = [];
 let bookedSeats = [];
 let selectedSeats = [];
@@ -33,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadLayoutAndBookings();
 });
 
+// Event-Einstellungen laden
 function loadEventDetails() {
     db.collection('config').doc('details').onSnapshot(doc => {
         if (doc.exists) {
@@ -58,6 +61,7 @@ function updateUIWithEventDetails() {
     document.getElementById('edit-price').value = eventConfig.price;
 }
 
+// Einstellungen im Admin speichern
 document.getElementById('event-settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const updated = {
@@ -70,12 +74,13 @@ document.getElementById('event-settings-form').addEventListener('submit', async 
 
     try {
         await db.collection('config').doc('details').set(updated);
-        alert("Veranstaltungs-Details aktualisiert!");
+        alert("Veranstaltungs-Details erfolgreich aktualisiert!");
     } catch (err) {
-        alert("Fehler: " + err.message);
+        alert("Fehler beim Speichern: " + err.message);
     }
 });
 
+// Realtime-Synchronisierung von Saalplan und Tickets
 function loadLayoutAndBookings() {
     db.collection('config').doc('layout').onSnapshot(doc => {
         if (doc.exists) {
@@ -115,18 +120,19 @@ function loadLayoutAndBookings() {
     });
 }
 
+// Ticket stornieren
 async function cancelTicket(ticketId) {
     if (confirm(`Möchtest du das Ticket ${ticketId} wirklich stornieren?`)) {
         try {
             await db.collection('tickets').doc(ticketId).delete();
             alert("Ticket storniert!");
         } catch (err) {
-            alert("Fehler: " + err.message);
+            alert("Fehler beim Stornieren: " + err.message);
         }
     }
 }
 
-// Besucher Saalplan
+// Besucher Saalplan rendern
 function renderUserSeating() {
     const el = document.getElementById('seating-map');
     el.innerHTML = '';
@@ -162,6 +168,7 @@ function renderUserSeating() {
     });
 }
 
+// Besucher Sitz-Auswahl & dynamische Namen
 function toggleSeatSelection(seatId) {
     if (selectedSeats.includes(seatId)) {
         selectedSeats = selectedSeats.filter(id => id !== seatId);
@@ -169,34 +176,56 @@ function toggleSeatSelection(seatId) {
         selectedSeats.push(seatId);
     }
 
+    const container = document.getElementById('booking-form-container');
+    const namesDiv = document.getElementById('individual-names-container');
+
     if (selectedSeats.length > 0) {
-        document.getElementById('booking-form-container').classList.remove('hidden');
+        container.classList.remove('hidden');
         document.getElementById('selected-seats-list').innerText = selectedSeats.join(', ');
         document.getElementById('total-price').innerText = (selectedSeats.length * eventConfig.price).toFixed(2);
+
+        namesDiv.innerHTML = '<p><strong>Name pro Ticket eintragen:</strong></p>';
+        selectedSeats.forEach(seat => {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = `Name für Platz ${seat}`;
+            input.dataset.seat = seat;
+            input.required = true;
+            input.className = 'seat-name-input';
+            input.style.display = 'block';
+            input.style.width = '100%';
+            input.style.marginTop = '8px';
+            namesDiv.appendChild(input);
+        });
     } else {
-        document.getElementById('booking-form-container').classList.add('hidden');
+        container.classList.add('hidden');
+        namesDiv.innerHTML = '';
     }
     renderUserSeating();
 }
 
-// Online Buchung: Erstellt pro Sitzplatz eine eigene Karte/Ticket
+// Besucher Buchung abschicken
 document.getElementById('booking-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('buyer-name').value;
     const email = document.getElementById('buyer-email').value;
+    const nameInputs = document.querySelectorAll('.seat-name-input');
 
     try {
-        for (const seat of selectedSeats) {
+        for (const input of nameInputs) {
+            const seat = input.dataset.seat;
+            const ticketName = input.value.trim() || "Gast";
             const ticketId = 'TICK-' + Math.floor(100000 + Math.random() * 900000);
+
             await db.collection('tickets').doc(ticketId).set({
-                name: name,
+                name: ticketName,
                 email: email,
                 seat: seat,
                 price: eventConfig.price.toFixed(2),
                 status: 'GÜLTIG',
                 createdAt: new Date().toISOString()
             });
-            generatePDFTicket(ticketId, name, seat, eventConfig.price.toFixed(2));
+
+            generatePDFTicket(ticketId, ticketName, seat, eventConfig.price.toFixed(2));
         }
 
         alert("Buchung erfolgreich! Alle Einzeltickets werden heruntergeladen.");
@@ -205,45 +234,50 @@ document.getElementById('booking-form').addEventListener('submit', async (e) => 
         renderUserSeating();
 
     } catch (err) {
-        alert("Fehler bei Buchung: " + err.message);
+        alert("Fehler bei der Buchung: " + err.message);
     }
 });
 
-// Kassenverkauf vor Ort: Einzeltickets
+// Kassen-Verkauf mit Einzelnamen
 document.getElementById('pos-submit-btn').onclick = async () => {
     if (posSelectedSeats.length === 0) {
         alert("Wähle mindestens einen Platz aus!");
         return;
     }
-    const name = document.getElementById('pos-buyer-name').value || "Barzahler Abendkasse";
+
+    const posInputs = document.querySelectorAll('.pos-seat-name-input');
 
     try {
-        for (const seat of posSelectedSeats) {
+        for (const input of posInputs) {
+            const seat = input.dataset.seat;
+            const ticketName = input.value.trim() || "Barzahler Abendkasse";
             const ticketId = 'POS-' + Math.floor(100000 + Math.random() * 900000);
+
             await db.collection('tickets').doc(ticketId).set({
-                name: name,
+                name: ticketName,
                 email: "Barverkauf vor Ort",
                 seat: seat,
                 price: eventConfig.price.toFixed(2),
                 status: 'GÜLTIG',
                 createdAt: new Date().toISOString()
             });
-            generatePDFTicket(ticketId, name, seat, eventConfig.price.toFixed(2));
+
+            generatePDFTicket(ticketId, ticketName, seat, eventConfig.price.toFixed(2));
         }
 
-        alert("Barverkauf abgeschlossen! Tickets erstellt.");
+        alert("Barverkauf abgeschlossen! Für jeden Platz wurde ein separates Ticket gedruckt.");
         posSelectedSeats = [];
-        document.getElementById('pos-buyer-name').value = '';
+        document.getElementById('pos-names-container').innerHTML = '';
         document.getElementById('pos-seats-list').innerText = '-';
         document.getElementById('pos-total-price').innerText = '0.00';
         renderPosSeating();
 
     } catch (err) {
-        alert("Fehler: " + err.message);
+        alert("Fehler beim Kassenverkauf: " + err.message);
     }
 };
 
-// Generiert ein PDF pro Ticket (mit individuellem QR-Code)
+// PDF Ticket Erzeugung (Einzelticket)
 function generatePDFTicket(ticketId, name, seat, price) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -273,8 +307,7 @@ function generatePDFTicket(ticketId, name, seat, price) {
     }, 200);
 }
 
-// --- SCANNER & EINLASS-KONTROLLE ---
-
+// Scanner & Einlasskontrolle
 document.getElementById('check-ticket-btn').onclick = () => {
     const id = document.getElementById('manual-ticket-id').value.trim();
     if (id) processTicketScan(id);
@@ -297,7 +330,7 @@ async function processTicketScan(ticketId) {
         const data = doc.data();
         if (data.status === 'ENTWERTET') {
             resultEl.classList.add('invalid');
-            resultEl.innerText = `⚠️ BEREITS ENTWERTET: Dieses Ticket (${data.seat}) wurde bereits genutzt!`;
+            resultEl.innerText = `⚠️ BEREITS ENTWERTET: Dieses Ticket (Platz ${data.seat}) wurde schon genutzt!`;
         } else {
             await docRef.update({ status: 'ENTWERTET' });
             resultEl.classList.add('valid');
@@ -318,8 +351,7 @@ function startQRScanner() {
     });
 }
 
-// --- ADMIN SAALPLAN EDITOR MIT LÖSCHFUNKTION ---
-
+// Admin Saalplan Editor
 function renderAdminEditor() {
     const el = document.getElementById('admin-seating-editor');
     if (!el) return;
@@ -347,7 +379,6 @@ function renderAdminEditor() {
                 renderAdminEditor();
             };
 
-            // LÖSCH-BUTTON: Entfernt den Sitz komplett aus der Reihe
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn-delete-seat';
             deleteBtn.innerText = 'X';
@@ -371,7 +402,6 @@ function renderAdminEditor() {
         };
         rowDiv.appendChild(addSeatBtn);
 
-        // Reihe löschen
         const deleteRowBtn = document.createElement('button');
         deleteRowBtn.className = 'btn-danger';
         deleteRowBtn.style.marginLeft = '10px';
@@ -397,11 +427,11 @@ document.getElementById('add-row-btn').onclick = () => {
 
 document.getElementById('save-layout-btn').onclick = () => {
     db.collection('config').doc('layout').set({ rows: currentLayout })
-        .then(() => alert("Saalplan gespeichert!"))
+        .then(() => alert("Saalplan erfolgreich gespeichert!"))
         .catch(err => alert("Fehler beim Speichern: " + err.message));
 };
 
-// Toggle Kassen & Scanner Modus
+// Kassen-Modus umschalten
 document.getElementById('toggle-pos-btn').onclick = () => {
     const posBox = document.getElementById('pos-mode-container');
     posBox.classList.toggle('hidden');
@@ -445,6 +475,21 @@ function renderPosSeating() {
                     } else {
                         posSelectedSeats.push(seat.id);
                     }
+
+                    const posNamesDiv = document.getElementById('pos-names-container');
+                    posNamesDiv.innerHTML = '';
+                    posSelectedSeats.forEach(s => {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.placeholder = `Name für Platz ${s}`;
+                        input.dataset.seat = s;
+                        input.className = 'pos-seat-name-input';
+                        input.style.display = 'block';
+                        input.style.width = '100%';
+                        input.style.marginTop = '8px';
+                        posNamesDiv.appendChild(input);
+                    });
+
                     document.getElementById('pos-seats-list').innerText = posSelectedSeats.length > 0 ? posSelectedSeats.join(', ') : '-';
                     document.getElementById('pos-total-price').innerText = (posSelectedSeats.length * eventConfig.price).toFixed(2);
                     renderPosSeating();
@@ -456,7 +501,7 @@ function renderPosSeating() {
     });
 }
 
-// Auth Logik
+// Auth Handlers
 document.getElementById('admin-login-btn').onclick = () => document.getElementById('login-modal').classList.remove('hidden');
 document.getElementById('close-login-btn').onclick = () => document.getElementById('login-modal').classList.add('hidden');
 
