@@ -1,4 +1,3 @@
-// FIREBASE KONFIGURATION (Hier eigene Daten einfügen)
 const firebaseConfig = {
     apiKey: "AIzaSyDO8HC7Q3zW8HiiEMIzJvMR5kzRSOEurW8",
     authDomain: "sing-tanz.firebaseapp.com",
@@ -9,15 +8,17 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Status-Variablen
+// Auth-Persistenz erzwingen (verhindert Tracking-Prevention-Sperren)
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 let currentLayout = [];
 let bookedSeats = [];
 let selectedSeats = [];
 let posSelectedSeats = [];
+let html5QrcodeScanner = null;
 
 let eventConfig = {
     title: "Sing & Tanz Konzert",
@@ -32,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadLayoutAndBookings();
 });
 
-// Event-Einstellungen laden (Titel, Datum, Ort, Preis)
 function loadEventDetails() {
     db.collection('config').doc('details').onSnapshot(doc => {
         if (doc.exists) {
@@ -51,7 +51,6 @@ function updateUIWithEventDetails() {
     document.getElementById('display-location').innerText = eventConfig.location;
     document.getElementById('display-price').innerText = parseFloat(eventConfig.price).toFixed(2);
 
-    // Formular-Felder im Admin ausfüllen
     document.getElementById('edit-title').value = eventConfig.title;
     document.getElementById('edit-date').value = eventConfig.date;
     document.getElementById('edit-time').value = eventConfig.time;
@@ -59,7 +58,6 @@ function updateUIWithEventDetails() {
     document.getElementById('edit-price').value = eventConfig.price;
 }
 
-// Einstellungen im Admin speichern
 document.getElementById('event-settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const updated = {
@@ -72,13 +70,12 @@ document.getElementById('event-settings-form').addEventListener('submit', async 
 
     try {
         await db.collection('config').doc('details').set(updated);
-        alert("Veranstaltungs-Details wurden erfolgreich aktualisiert!");
+        alert("Veranstaltungs-Details aktualisiert!");
     } catch (err) {
-        alert("Fehler beim Speichern: " + err.message);
+        alert("Fehler: " + err.message);
     }
 });
 
-// Saalplan und Buchungen aus Firestore synchronisieren
 function loadLayoutAndBookings() {
     db.collection('config').doc('layout').onSnapshot(doc => {
         if (doc.exists) {
@@ -91,25 +88,24 @@ function loadLayoutAndBookings() {
         }
     });
 
-    db.collection('bookings').onSnapshot(snapshot => {
+    db.collection('tickets').onSnapshot(snapshot => {
         bookedSeats = [];
         const bookingsTableBody = document.querySelector('#bookings-table tbody');
         bookingsTableBody.innerHTML = '';
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            bookedSeats.push(...data.seats);
+            bookedSeats.push(data.seat);
 
-            // Tabelle im Admin mit Storno-Button aufbauen
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${doc.id}</td>
                 <td>${data.name}</td>
-                <td>${data.email || 'Barzahlung (Kasse)'}</td>
-                <td>${data.seats.join(', ')}</td>
-                <td>${data.totalPrice} €</td>
+                <td>${data.seat}</td>
+                <td><strong>${data.status || 'GÜLTIG'}</strong></td>
+                <td>${data.price} €</td>
                 <td>
-                    <button class="btn-danger" onclick="cancelBooking('${doc.id}')">Stornieren</button>
+                    <button class="btn-danger" onclick="cancelTicket('${doc.id}')">Stornieren</button>
                 </td>
             `;
             bookingsTableBody.appendChild(tr);
@@ -119,19 +115,18 @@ function loadLayoutAndBookings() {
     });
 }
 
-// Stornierung durch den Admin
-async function cancelBooking(ticketId) {
-    if (confirm(`Möchtest du das Ticket ${ticketId} wirklich stornieren? Die Plätze werden sofort wieder frei.`)) {
+async function cancelTicket(ticketId) {
+    if (confirm(`Möchtest du das Ticket ${ticketId} wirklich stornieren?`)) {
         try {
-            await db.collection('bookings').doc(ticketId).delete();
-            alert("Buchung erfolgreich storniert!");
+            await db.collection('tickets').doc(ticketId).delete();
+            alert("Ticket storniert!");
         } catch (err) {
-            alert("Fehler bei der Stornierung: " + err.message);
+            alert("Fehler: " + err.message);
         }
     }
 }
 
-// Interaktiver Besucher-Saalplan
+// Besucher Saalplan
 function renderUserSeating() {
     const el = document.getElementById('seating-map');
     el.innerHTML = '';
@@ -184,40 +179,236 @@ function toggleSeatSelection(seatId) {
     renderUserSeating();
 }
 
-// Reguläre Online-Buchung durch den Besucher
+// Online Buchung: Erstellt pro Sitzplatz eine eigene Karte/Ticket
 document.getElementById('booking-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('buyer-name').value;
     const email = document.getElementById('buyer-email').value;
-    const ticketId = 'TICK-' + Math.floor(100000 + Math.random() * 900000);
-    const totalPrice = (selectedSeats.length * eventConfig.price).toFixed(2);
 
     try {
-        await db.collection('bookings').doc(ticketId).set({
-            name: name,
-            email: email,
-            seats: selectedSeats,
-            totalPrice: totalPrice,
-            createdAt: new Date().toISOString()
-        });
+        for (const seat of selectedSeats) {
+            const ticketId = 'TICK-' + Math.floor(100000 + Math.random() * 900000);
+            await db.collection('tickets').doc(ticketId).set({
+                name: name,
+                email: email,
+                seat: seat,
+                price: eventConfig.price.toFixed(2),
+                status: 'GÜLTIG',
+                createdAt: new Date().toISOString()
+            });
+            generatePDFTicket(ticketId, name, seat, eventConfig.price.toFixed(2));
+        }
 
-        generatePDFTicket(ticketId, name, selectedSeats, totalPrice);
-        alert("Buchung erfolgreich! Dein PDF-Ticket wird heruntergeladen.");
+        alert("Buchung erfolgreich! Alle Einzeltickets werden heruntergeladen.");
         selectedSeats = [];
         document.getElementById('booking-form-container').classList.add('hidden');
         renderUserSeating();
 
     } catch (err) {
-        alert("Fehler bei der Buchung: " + err.message);
+        alert("Fehler bei Buchung: " + err.message);
     }
 });
 
-// --- KASSEN-MODUS (POS) ---
+// Kassenverkauf vor Ort: Einzeltickets
+document.getElementById('pos-submit-btn').onclick = async () => {
+    if (posSelectedSeats.length === 0) {
+        alert("Wähle mindestens einen Platz aus!");
+        return;
+    }
+    const name = document.getElementById('pos-buyer-name').value || "Barzahler Abendkasse";
 
+    try {
+        for (const seat of posSelectedSeats) {
+            const ticketId = 'POS-' + Math.floor(100000 + Math.random() * 900000);
+            await db.collection('tickets').doc(ticketId).set({
+                name: name,
+                email: "Barverkauf vor Ort",
+                seat: seat,
+                price: eventConfig.price.toFixed(2),
+                status: 'GÜLTIG',
+                createdAt: new Date().toISOString()
+            });
+            generatePDFTicket(ticketId, name, seat, eventConfig.price.toFixed(2));
+        }
+
+        alert("Barverkauf abgeschlossen! Tickets erstellt.");
+        posSelectedSeats = [];
+        document.getElementById('pos-buyer-name').value = '';
+        document.getElementById('pos-seats-list').innerText = '-';
+        document.getElementById('pos-total-price').innerText = '0.00';
+        renderPosSeating();
+
+    } catch (err) {
+        alert("Fehler: " + err.message);
+    }
+};
+
+// Generiert ein PDF pro Ticket (mit individuellem QR-Code)
+function generatePDFTicket(ticketId, name, seat, price) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(20);
+    doc.text(eventConfig.title, 20, 20);
+
+    doc.setFontSize(12);
+    doc.text(`Ticket-ID: ${ticketId}`, 20, 35);
+    doc.text(`Name: ${name}`, 20, 45);
+    doc.text(`Sitzplatz: ${seat}`, 20, 55);
+    doc.text(`Preis: ${price} EUR`, 20, 65);
+    doc.text(`Datum: ${eventConfig.date} | ${eventConfig.time}`, 20, 75);
+    doc.text(`Ort: ${eventConfig.location}`, 20, 85);
+
+    const qrDiv = document.getElementById('qrcode');
+    qrDiv.innerHTML = '';
+    new QRCode(qrDiv, ticketId);
+
+    setTimeout(() => {
+        const qrCanvas = qrDiv.querySelector('canvas');
+        if (qrCanvas) {
+            const qrDataUrl = qrCanvas.toDataURL('image/png');
+            doc.addImage(qrDataUrl, 'PNG', 130, 35, 60, 60);
+        }
+        doc.save(`Ticket_${seat}_${ticketId}.pdf`);
+    }, 200);
+}
+
+// --- SCANNER & EINLASS-KONTROLLE ---
+
+document.getElementById('check-ticket-btn').onclick = () => {
+    const id = document.getElementById('manual-ticket-id').value.trim();
+    if (id) processTicketScan(id);
+};
+
+async function processTicketScan(ticketId) {
+    const resultEl = document.getElementById('scan-result');
+    resultEl.classList.remove('hidden', 'valid', 'invalid');
+
+    try {
+        const docRef = db.collection('tickets').doc(ticketId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            resultEl.classList.add('invalid');
+            resultEl.innerText = `❌ UNGÜLTIG: Ticket ${ticketId} existiert nicht!`;
+            return;
+        }
+
+        const data = doc.data();
+        if (data.status === 'ENTWERTET') {
+            resultEl.classList.add('invalid');
+            resultEl.innerText = `⚠️ BEREITS ENTWERTET: Dieses Ticket (${data.seat}) wurde bereits genutzt!`;
+        } else {
+            await docRef.update({ status: 'ENTWERTET' });
+            resultEl.classList.add('valid');
+            resultEl.innerText = `✅ GÜLTIG! Einlass gewährt für ${data.name} (Platz: ${data.seat})`;
+        }
+
+    } catch (err) {
+        resultEl.classList.add('invalid');
+        resultEl.innerText = "Fehler beim Scannen: " + err.message;
+    }
+}
+
+function startQRScanner() {
+    if (html5QrcodeScanner) return;
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render((decodedText) => {
+        processTicketScan(decodedText);
+    });
+}
+
+// --- ADMIN SAALPLAN EDITOR MIT LÖSCHFUNKTION ---
+
+function renderAdminEditor() {
+    const el = document.getElementById('admin-seating-editor');
+    if (!el) return;
+    el.innerHTML = '';
+
+    currentLayout.forEach((row, rIndex) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'seat-row';
+
+        const rowLabel = document.createElement('strong');
+        rowLabel.innerText = row.rowName + ": ";
+        rowDiv.appendChild(rowLabel);
+
+        row.seats.forEach((seat, sIndex) => {
+            const seatBox = document.createElement('div');
+            seatBox.className = 'seat-edit-box';
+
+            const seatBtn = document.createElement('button');
+            seatBtn.className = seat.status === 'blocked' ? 'btn-danger' : 'btn-secondary';
+            seatBtn.innerText = `${seat.id} (${seat.status === 'blocked' ? 'gesperrt' : 'frei'})`;
+
+            seatBtn.onclick = () => {
+                currentLayout[rIndex].seats[sIndex].status = 
+                    currentLayout[rIndex].seats[sIndex].status === 'available' ? 'blocked' : 'available';
+                renderAdminEditor();
+            };
+
+            // LÖSCH-BUTTON: Entfernt den Sitz komplett aus der Reihe
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete-seat';
+            deleteBtn.innerText = 'X';
+            deleteBtn.title = 'Sitz löschen';
+            deleteBtn.onclick = () => {
+                currentLayout[rIndex].seats.splice(sIndex, 1);
+                renderAdminEditor();
+            };
+
+            seatBox.appendChild(seatBtn);
+            seatBox.appendChild(deleteBtn);
+            rowDiv.appendChild(seatBox);
+        });
+
+        const addSeatBtn = document.createElement('button');
+        addSeatBtn.innerText = "+ Sitz";
+        addSeatBtn.onclick = () => {
+            const nextSeatNum = row.seats.length + 1;
+            row.seats.push({ id: `${rIndex + 1}-${nextSeatNum}`, status: 'available' });
+            renderAdminEditor();
+        };
+        rowDiv.appendChild(addSeatBtn);
+
+        // Reihe löschen
+        const deleteRowBtn = document.createElement('button');
+        deleteRowBtn.className = 'btn-danger';
+        deleteRowBtn.style.marginLeft = '10px';
+        deleteRowBtn.innerText = "Reihe löschen";
+        deleteRowBtn.onclick = () => {
+            currentLayout.splice(rIndex, 1);
+            renderAdminEditor();
+        };
+        rowDiv.appendChild(deleteRowBtn);
+
+        el.appendChild(rowDiv);
+    });
+}
+
+document.getElementById('add-row-btn').onclick = () => {
+    const newRowIndex = currentLayout.length + 1;
+    currentLayout.push({
+        rowName: `Reihe ${newRowIndex}`,
+        seats: [{ id: `${newRowIndex}-1`, status: "available" }]
+    });
+    renderAdminEditor();
+};
+
+document.getElementById('save-layout-btn').onclick = () => {
+    db.collection('config').doc('layout').set({ rows: currentLayout })
+        .then(() => alert("Saalplan gespeichert!"))
+        .catch(err => alert("Fehler beim Speichern: " + err.message));
+};
+
+// Toggle Kassen & Scanner Modus
 document.getElementById('toggle-pos-btn').onclick = () => {
     const posBox = document.getElementById('pos-mode-container');
     posBox.classList.toggle('hidden');
-    renderPosSeating();
+    if (!posBox.classList.contains('hidden')) {
+        renderPosSeating();
+        startQRScanner();
+    }
 };
 
 function renderPosSeating() {
@@ -248,7 +439,16 @@ function renderPosSeating() {
             } else {
                 seatDiv.classList.add('available');
                 seatDiv.innerText = seat.id;
-                seatDiv.onclick = () => togglePosSeatSelection(seat.id);
+                seatDiv.onclick = () => {
+                    if (posSelectedSeats.includes(seat.id)) {
+                        posSelectedSeats = posSelectedSeats.filter(id => id !== seat.id);
+                    } else {
+                        posSelectedSeats.push(seat.id);
+                    }
+                    document.getElementById('pos-seats-list').innerText = posSelectedSeats.length > 0 ? posSelectedSeats.join(', ') : '-';
+                    document.getElementById('pos-total-price').innerText = (posSelectedSeats.length * eventConfig.price).toFixed(2);
+                    renderPosSeating();
+                };
             }
             rowDiv.appendChild(seatDiv);
         });
@@ -256,83 +456,7 @@ function renderPosSeating() {
     });
 }
 
-function togglePosSeatSelection(seatId) {
-    if (posSelectedSeats.includes(seatId)) {
-        posSelectedSeats = posSelectedSeats.filter(id => id !== seatId);
-    } else {
-        posSelectedSeats.push(seatId);
-    }
-
-    document.getElementById('pos-seats-list').innerText = posSelectedSeats.length > 0 ? posSelectedSeats.join(', ') : '-';
-    document.getElementById('pos-total-price').innerText = (posSelectedSeats.length * eventConfig.price).toFixed(2);
-    renderPosSeating();
-}
-
-// Kassen-Verkauf abschließen
-document.getElementById('pos-submit-btn').onclick = async () => {
-    if (posSelectedSeats.length === 0) {
-        alert("Bitte wähle mindestens einen Sitzplatz im Kassenplan aus!");
-        return;
-    }
-    const name = document.getElementById('pos-buyer-name').value || "Barzahler Abendkasse";
-    const ticketId = 'POS-' + Math.floor(100000 + Math.random() * 900000);
-    const totalPrice = (posSelectedSeats.length * eventConfig.price).toFixed(2);
-
-    try {
-        await db.collection('bookings').doc(ticketId).set({
-            name: name,
-            email: "Barverkauf vor Ort",
-            seats: posSelectedSeats,
-            totalPrice: totalPrice,
-            createdAt: new Date().toISOString()
-        });
-
-        generatePDFTicket(ticketId, name, posSelectedSeats, totalPrice);
-        alert("Barverkauf abgeschlossen! PDF-Ticket erstellt.");
-        posSelectedSeats = [];
-        document.getElementById('pos-buyer-name').value = '';
-        document.getElementById('pos-seats-list').innerText = '-';
-        document.getElementById('pos-total-price').innerText = '0.00';
-        renderPosSeating();
-
-    } catch (err) {
-        alert("Fehler bei Kassenbuchung: " + err.message);
-    }
-};
-
-// PDF Ticket Erzeugung
-function generatePDFTicket(ticketId, name, seats, price) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    doc.setFontSize(20);
-    doc.text(eventConfig.title, 20, 20);
-
-    doc.setFontSize(12);
-    doc.text(`Ticket-Nummer: ${ticketId}`, 20, 35);
-    doc.text(`Name: ${name}`, 20, 45);
-    doc.text(`Sitzplätze: ${seats.join(', ')}`, 20, 55);
-    doc.text(`Gesamtpreis: ${price} EUR`, 20, 65);
-    doc.text(`Datum: ${eventConfig.date} | ${eventConfig.time}`, 20, 75);
-    doc.text(`Ort: ${eventConfig.location}`, 20, 85);
-
-    // QR-Code für Ticketkontrolle
-    const qrDiv = document.getElementById('qrcode');
-    qrDiv.innerHTML = '';
-    new QRCode(qrDiv, ticketId);
-
-    setTimeout(() => {
-        const qrCanvas = qrDiv.querySelector('canvas');
-        if (qrCanvas) {
-            const qrDataUrl = qrCanvas.toDataURL('image/png');
-            doc.addImage(qrDataUrl, 'PNG', 140, 35, 50, 50);
-        }
-        doc.save(`Ticket_${ticketId}.pdf`);
-    }, 200);
-}
-
-// --- ADMIN & AUTH LOGIK ---
-
+// Auth Logik
 document.getElementById('admin-login-btn').onclick = () => document.getElementById('login-modal').classList.remove('hidden');
 document.getElementById('close-login-btn').onclick = () => document.getElementById('login-modal').classList.add('hidden');
 
@@ -354,61 +478,4 @@ document.getElementById('logout-btn').onclick = () => {
     auth.signOut().then(() => {
         document.getElementById('admin-dashboard').classList.add('hidden');
     });
-};
-
-// Editor-Hilfsfunktionen
-function renderAdminEditor() {
-    const el = document.getElementById('admin-seating-editor');
-    if (!el) return;
-    el.innerHTML = '';
-
-    currentLayout.forEach((row, rIndex) => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'seat-row';
-
-        const rowLabel = document.createElement('strong');
-        rowLabel.innerText = row.rowName + ": ";
-        rowDiv.appendChild(rowLabel);
-
-        row.seats.forEach((seat, sIndex) => {
-            const seatBtn = document.createElement('button');
-            seatBtn.style.margin = "2px";
-            seatBtn.className = seat.status === 'blocked' ? 'btn-danger' : 'btn-secondary';
-            seatBtn.innerText = `${seat.id} (${seat.status === 'blocked' ? 'gesperrt' : 'frei'})`;
-
-            seatBtn.onclick = () => {
-                currentLayout[rIndex].seats[sIndex].status = 
-                    currentLayout[rIndex].seats[sIndex].status === 'available' ? 'blocked' : 'available';
-                renderAdminEditor();
-            };
-
-            rowDiv.appendChild(seatBtn);
-        });
-
-        const addSeatBtn = document.createElement('button');
-        addSeatBtn.innerText = "+ Sitz";
-        addSeatBtn.onclick = () => {
-            const nextSeatNum = row.seats.length + 1;
-            row.seats.push({ id: `${rIndex + 1}-${nextSeatNum}`, status: 'available' });
-            renderAdminEditor();
-        };
-        rowDiv.appendChild(addSeatBtn);
-
-        el.appendChild(rowDiv);
-    });
-}
-
-document.getElementById('add-row-btn').onclick = () => {
-    const newRowIndex = currentLayout.length + 1;
-    currentLayout.push({
-        rowName: `Reihe ${newRowIndex}`,
-        seats: [{ id: `${newRowIndex}-1`, status: "available" }]
-    });
-    renderAdminEditor();
-};
-
-document.getElementById('save-layout-btn').onclick = () => {
-    db.collection('config').doc('layout').set({ rows: currentLayout })
-        .then(() => alert("Saalplan gespeichert und aktualisiert!"))
-        .catch(err => alert("Fehler beim Speichern: " + err.message));
 };
