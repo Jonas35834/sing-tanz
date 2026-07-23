@@ -42,7 +42,7 @@
 
     <section id="about" class="container">
         <h2>Über unser Konzert</h2>
-        <p>Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen für Groß und Klein!</p>
+        <p id="display-about-text">Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen für Groß und Klein!</p>
     </section>
 
     <section id="booking" class="container">
@@ -88,7 +88,7 @@
         <div class="admin-header">
             <h2>Admin Dashboard</h2>
             <div>
-                <button id="toggle-pos-btn" class="btn-pos">🏧 Kassen- & Scanner-Modus</button>
+                <button id="toggle-pos-btn" class="btn-pos">🏧 Kassen- & Scanner-Modus (Vollbild)</button>
                 <button id="logout-btn" class="btn-secondary">Ausloggen</button>
             </div>
         </div>
@@ -96,7 +96,10 @@
         <hr>
 
         <div id="pos-mode-container" class="pos-box hidden">
-            <h3>📷 Einlass QR-Code Scanner & Abendkasse</h3>
+            <div class="pos-header">
+                <h2>🏧 Abendkasse & Einlass-Scanner</h2>
+                <button id="close-pos-btn" class="btn-danger">❌ Kasse beenden & Vollbild schließen</button>
+            </div>
             
             <div class="scanner-section card">
                 <h4>Ticket scannen & entwerten</h4>
@@ -112,7 +115,7 @@
 
             <hr>
 
-            <h3>🏧 Barverkauf vor Ort</h3>
+            <h3>🎟️ Barverkauf vor Ort</h3>
             <p>Wähle Plätze im Plan aus und trage für jeden Platz einen Namen ein:</p>
             <div id="pos-seating-map" class="seating-container"></div>
             
@@ -135,6 +138,9 @@
                 <label>Uhrzeit: <input type="text" id="edit-time" required></label>
                 <label>Ort: <input type="text" id="edit-location" required></label>
                 <label>Ticketpreis (€): <input type="number" step="0.50" id="edit-price" required></label>
+                <label>Über uns Text: 
+                    <textarea id="edit-about" rows="4" style="width:100%; margin-top:5px; padding:8px;" required></textarea>
+                </label>
                 <button type="submit" class="btn-primary">Einstellungen speichern</button>
             </form>
         </div>
