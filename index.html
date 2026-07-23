@@ -6,9 +6,11 @@
     <title>Sing & Tanz Konzert</title>
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" href="#">
+    
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -40,7 +42,7 @@
 
     <section id="about" class="container">
         <h2>Über unser Konzert</h2>
-        <p>Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen!</p>
+        <p>Wir drei Veranstalter laden euch herzlich zu einem unvergesslichen Nachmittag ein. Es erwartet euch eine familiäre Atmosphäre mit stimmungsvollem Live-Gesang und mitreißenden Tanzdarbietungen für Groß und Klein!</p>
     </section>
 
     <section id="booking" class="container">
@@ -62,9 +64,12 @@
             <h4>Gesamtsumme: <span id="total-price">0.00</span> €</h4>
 
             <form id="booking-form">
-                <input type="text" id="buyer-name" placeholder="Dein vollständiger Name" required>
-                <input type="email" id="buyer-email" placeholder="Deine E-Mail-Adresse" required>
-                <button type="submit" class="btn-primary">Kostenpflichtig buchen & Tickets herunterladen</button>
+                <input type="email" id="buyer-email" placeholder="Deine E-Mail-Adresse für Bestätigung" required>
+                
+                <div id="individual-names-container">
+                    </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Kostenpflichtig buchen & Tickets herunterladen</button>
             </form>
         </div>
     </section>
@@ -106,13 +111,17 @@
             <hr>
 
             <h3>🏧 Barverkauf vor Ort</h3>
-            <p>Wähle Plätze im Plan aus und schließe die Barzahlung ab:</p>
+            <p>Wähle Plätze im Plan aus und trage für jeden Platz einen Namen ein:</p>
             <div id="pos-seating-map" class="seating-container"></div>
+            
             <div id="pos-checkout" class="card">
                 <h4>Gewählte Plätze: <span id="pos-seats-list">-</span></h4>
                 <h4>Summe Barzahlung: <span id="pos-total-price">0.00</span> €</h4>
-                <input type="text" id="pos-buyer-name" placeholder="Name des Käufers (Barzahler)">
-                <button id="pos-submit-btn" class="btn-primary">Barzahlung abschließen & Einzeltickets drucken</button>
+                
+                <div id="pos-names-container">
+                    </div>
+
+                <button id="pos-submit-btn" class="btn-primary" style="margin-top: 15px;">Barzahlung abschließen & Einzeltickets drucken</button>
             </div>
         </div>
 
